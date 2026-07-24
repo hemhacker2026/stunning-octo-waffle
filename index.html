@@ -5086,4 +5086,1170 @@
                 // PAID TODAY – Show payments with WhatsApp & thank you message
                 // ============================================================
                 case 'paidToday': {
-                    const paidTodayList =
+                    const paidTodayList = getPaidToday(adminPayments, adminMembers);
+                    let totalPaid = 0;
+                    paidTodayList.forEach(item => totalPaid += item.amount);
+
+                    if (paidTodayList.length === 0) {
+                        html = `<div style="text-align:center;padding:2rem;color:var(--text-muted);">
+                            <div style="font-size:2.4rem;margin-bottom:0.5rem;"><i class="fas fa-coins"></i></div>
+                            <p>لا توجد مدفوعات اليوم</p>
+                        </div>`;
+                    } else {
+                        let listItems = paidTodayList.map(item => {
+                            const m = item.member;
+                            const name = m['الاسم الكامل'] || 'غير معروف';
+                            const phone = m['رقم الهاتف'] || '';
+                            const memberId = m['رقم العضو'] || '';
+                            const amount = item.amount;
+                            const paymentDate = item.payment['تاريخ الدفع'] || '-';
+                            const paymentTime = item.payment['وقت الدفع'] || '';
+
+                            const nextExpiry = getLatestExpiryDate(memberId, adminPayments);
+                            const nextExpiryStr = nextExpiry ? nextExpiry.toISOString().split('T')[0] : 'غير محدد';
+
+                            const waMessage = `شكراً لك ${name} 🙏 على دفعك في الوقت المحدد!\n` +
+                                `تم استلام مبلغ ${amount.toLocaleString()} ج.م بتاريخ ${paymentDate}${paymentTime ? ' الساعة ' + paymentTime : ''}.\n` +
+                                `تاريخ انتهاء عضويتك القادم هو ${nextExpiryStr}.\n` +
+                                `ننصحك بالاستمرار في ممارسة الرياضة يومياً لتحقيق أهدافك! 💪\n` +
+                                `نحن سعداء بتقديم الاستشارة والدعم لك دائماً. 🏋️\n\n` +
+                                `مع خالص التحية، إدارة صالة Gym Pro`;
+
+                            const waUrl = phone ? `https://wa.me/2${phone}?text=${encodeURIComponent(waMessage)}` : '#';
+
+                            const phoneLink = phone ? `<a href="tel:${phone}" class="phone-btn"><i class="fas fa-phone"></i> ${phone}</a>` : '';
+                            const waLink = phone ? `<a href="${waUrl}" target="_blank" class="wa-btn"><i class="fab fa-whatsapp"></i> واتساب</a>` :
+                                `<span style="font-size:0.65rem;color:var(--text-muted);">لا يوجد رقم</span>`;
+
+                            return `
+                                <div class="expiry-item-gym" style="border-right:4px solid var(--accent-3);">
+                                    <div>
+                                        <div style="font-weight:700;color:var(--text-primary);">${name}</div>
+                                        <div style="font-size:0.7rem;color:var(--text-secondary);">${memberId}</div>
+                                        <div style="font-size:0.7rem;color:var(--accent-3);margin-top:2px;">
+                                            <i class="fas fa-money-bill-wave"></i> ${amount.toLocaleString()} ج.م
+                                            <span style="font-size:0.6rem;color:var(--text-muted);margin-right:6px;">
+                                                ${paymentDate} ${paymentTime ? paymentTime : ''}
+                                            </span>
+                                        </div>
+                                        <div style="font-size:0.65rem;color:var(--text-secondary);">
+                                            ينتهي: ${nextExpiryStr}
+                                        </div>
+                                    </div>
+                                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                                        <span style="background:var(--accent-3);color:#fff;padding:2px 14px;border-radius:20px;font-size:0.65rem;font-weight:600;">
+                                            ${amount.toLocaleString()} ج.م
+                                        </span>
+                                        <div class="contact-row">
+                                            ${phoneLink}
+                                            ${waLink}
+                                        </div>
+                                        ${phone ? `<div class="wa-msg-preview" style="max-width:240px;font-size:0.6rem;">
+                                            <span class="ar">📱 رسالة واتساب: شكراً للدفع! تنتهي عضويتك ${nextExpiryStr}</span>
+                                        </div>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
+                        html = `
+                            <div style="background:var(--bg-primary);border-radius:var(--radius-sm);padding:0.8rem 1rem;margin-bottom:1rem;border:2px solid var(--accent-3);">
+                                <span style="font-weight:700;">المجموع الكلي: </span>
+                                <span style="font-size:1.4rem;font-weight:800;color:var(--accent-3);">${totalPaid.toLocaleString()} ج.م</span>
+                                <span style="margin-right:1rem;color:var(--text-muted);font-size:0.85rem;">(${paidTodayList.length} دفعة)</span>
+                            </div>
+                            <div style="max-height:400px;overflow-y:auto;">${listItems}</div>
+                        `;
+                    }
+                    break;
+                }
+
+                // ============================================================
+                // OTHER CASES (members, renew, revenue)
+                // ============================================================
+                case 'members': {
+                    const total = adminMembers.length;
+                    const active = adminMembers.filter(m => {
+                        const exp = getLatestExpiryDate(m['رقم العضو'], adminPayments);
+                        if (!exp) return false;
+                        return new Date(exp) >= new Date();
+                    }).length;
+                    const inactive = total - active;
+                    html = `
+                        <div class="detail-grid">
+                            <div class="detail-item"><div class="label">إجمالي الأعضاء</div><div class="value" style="color:var(--accent-1);">${total}</div></div>
+                            <div class="detail-item"><div class="label">نشطون</div><div class="value" style="color:var(--accent-3);">${active}</div></div>
+                            <div class="detail-item"><div class="label">غير نشطين</div><div class="value" style="color:#ef4444;">${inactive}</div></div>
+                            <div class="detail-item"><div class="label">نسبة النشاط</div><div class="value" style="color:var(--accent-5);">${total > 0 ? Math.round((active/total)*100) : 0}%</div></div>
+                        </div>
+                        <div class="mt-3 text-sm" style="color:var(--text-secondary);">
+                            <i class="fas fa-info-circle"></i> إجمالي الأعضاء المسجلين في النظام. الأعضاء النشطون هم من لديهم عضوية سارية.
+                        </div>
+                    `;
+                    break;
+                }
+
+                case 'renew': {
+                    const payments = adminPayments || [];
+                    const membersWithPayments = new Set();
+                    payments.forEach(p => { if (p['العضو']) membersWithPayments.add(p['العضو']); });
+                    const totalMembers = adminMembers.length || 0;
+                    const renewRate = totalMembers > 0 ? Math.round((membersWithPayments.size / totalMembers) * 100) : 0;
+                    const avgPerMember = totalMembers > 0 ? Math.round((payments.length / totalMembers) * 10) / 10 : 0;
+                    html = `
+                        <div class="detail-grid">
+                            <div class="detail-item"><div class="label">معدل التجديد</div><div class="value" style="color:var(--accent-5);">${renewRate}%</div></div>
+                            <div class="detail-item"><div class="label">إجمالي المدفوعات</div><div class="value" style="color:var(--accent-1);">${payments.length}</div></div>
+                            <div class="detail-item"><div class="label">متوسط المدفوعات لكل عضو</div><div class="value" style="color:var(--accent-2);">${avgPerMember}</div></div>
+                            <div class="detail-item"><div class="label">الأعضاء الذين دفعوا</div><div class="value" style="color:var(--accent-3);">${membersWithPayments.size}</div></div>
+                        </div>
+                        <div class="mt-3 text-sm" style="color:var(--text-secondary);">
+                            <i class="fas fa-info-circle"></i> معدل التجديد = (عدد الأعضاء الذين دفعوا / إجمالي الأعضاء) × 100
+                        </div>
+                    `;
+                    break;
+                }
+
+                case 'revenue': {
+                    let totalRev = 0;
+                    adminPayments.forEach(p => totalRev += getPaymentAmount(p));
+                    const months = adminPayments.map(p => getPaymentMonth(p)).filter(m => m !== null);
+                    const uniqueMonths = [...new Set(months)];
+                    const avgMonthly = uniqueMonths.length > 0 ? Math.round(totalRev / uniqueMonths.length) : 0;
+                    html = `
+                        <div class="detail-grid">
+                            <div class="detail-item"><div class="label">إجمالي الإيرادات</div><div class="value" style="color:var(--accent-1);">${totalRev.toLocaleString()} ج.م</div></div>
+                            <div class="detail-item"><div class="label">متوسط الإيرادات الشهري</div><div class="value" style="color:var(--accent-5);">${avgMonthly.toLocaleString()} ج.م</div></div>
+                            <div class="detail-item"><div class="label">عدد المدفوعات</div><div class="value" style="color:var(--accent-2);">${adminPayments.length}</div></div>
+                            <div class="detail-item"><div class="label">أشهر مسجلة</div><div class="value" style="color:var(--accent-4);">${uniqueMonths.length}</div></div>
+                        </div>
+                        <div class="mt-3 text-sm" style="color:var(--text-secondary);">
+                            <i class="fas fa-info-circle"></i> إجمالي الإيرادات من جميع المدفوعات المسجلة في النظام.
+                        </div>
+                    `;
+                    break;
+                }
+
+                default:
+                    html = `<div style="text-align:center;padding:2rem;color:var(--text-muted);">لا توجد تفاصيل متاحة</div>`;
+            }
+
+            body.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        function closeStatDetailModal() {
+            document.getElementById('statDetailModal').classList.remove('active');
+        }
+
+        // ================================================================
+        // ADMIN DASHBOARD
+        // ================================================================
+        let adminRevenueChartInstance = null,
+            adminAttendanceChartInstance = null;
+        let adminPeakHoursChartInstance = null;
+        let adminMembers = [],
+            adminAttendance = [],
+            adminPayments = [];
+
+        let analyticsGrowthChartInstance = null;
+        let analyticsRetentionChartInstance = null;
+        let analyticsRevenueTypeChartInstance = null;
+        let analyticsForecastChartInstance = null;
+        let analyticsWeekdayChartInstance = null;
+        let analyticsHourDistributionInstance = null;
+        let analyticsTypeDistributionInstance = null;
+        let analyticsAgeDistributionInstance = null;
+
+        async function loadAdminDashboard() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('memberDashboard').classList.add('hidden');
+            document.getElementById('adminDashboard').classList.remove('hidden');
+
+            try {
+                let raw = await fetchSheetData('بيانات الأعضاء');
+                adminMembers = raw.filter(m => m['الاسم الكامل'] && m['الاسم الكامل'].trim() !== '');
+                adminAttendance = await fetchSheetData('سجل دخول الجيم');
+                adminPayments = await fetchSheetData('سجل المدفوعات');
+
+                document.getElementById('adminTotalMembers').textContent = adminMembers.length;
+
+                let today = new Date();
+                today.setHours(0, 0, 0, 0);
+                let tc = 0;
+                adminAttendance.forEach(log => { let d = parseDateFromSheet(log['تاريخ الدخول'] || log['وقت الدخول']); if (d &&
+                        isSameDate(d, today)) tc++; });
+                document.getElementById('adminTodayAttendance').textContent = tc;
+
+                let expiring = countExpiringSoon(adminPayments, raw);
+                document.getElementById('adminExpiringSoon').textContent = expiring;
+
+                let rev = 0;
+                adminPayments.forEach(p => rev += getPaymentAmount(p));
+                document.getElementById('adminTotalRevenue').textContent = rev.toLocaleString() + ' ج.م';
+
+                let now = new Date();
+                let cm = now.getMonth(),
+                    cy = now.getFullYear();
+                let newM = 0;
+                adminMembers.forEach(m => { let d = parseDateFromSheet(m['تاريخ البدء']); if (d && d.getMonth() === cm && d
+                        .getFullYear() === cy) newM++; });
+                document.getElementById('adminNewMembers').textContent = newM;
+
+                let expiredList = getExpiredMembersCurrentMonth(adminPayments, raw);
+                document.getElementById('adminExpiredMembers').textContent = expiredList.length;
+
+                let paidToday = getPaidToday(adminPayments, raw);
+                document.getElementById('adminPaidToday').textContent = paidToday.length;
+
+                let pCount = {};
+                adminPayments.forEach(p => { let id = p['العضو']; if (id) pCount[id] = (pCount[id] || 0) + 1; });
+                let renew = 0;
+                Object.values(pCount).forEach(c => { if (c > 1) renew++; });
+                let rate = adminMembers.length ? Math.round((renew / adminMembers.length) * 100) : 0;
+                document.getElementById('adminRenewRate').textContent = rate + '%';
+
+                // Revenue chart
+                let monthlyRev = {};
+                adminPayments.forEach(p => { let m = getPaymentMonth(p); if (m) { let a = getPaymentAmount(p); if (a > 0)
+                        monthlyRev[m] = (monthlyRev[m] || 0) + a; } });
+                let revMonths = Object.keys(monthlyRev).sort();
+                let revData = revMonths.map(m => monthlyRev[m]);
+                let rCtx = document.getElementById('adminRevenueChart').getContext('2d');
+                if (adminRevenueChartInstance) adminRevenueChartInstance.destroy();
+                let isDark = document.getElementById('htmlRoot').classList.contains('dark');
+                let tc2 = isDark ? '#94a3b8' : '#4a5568';
+                if (!revMonths.length) { rCtx.canvas.parentElement.innerHTML =
+                        '<div style="text-align:center;color:var(--text-muted);padding:20px 0;"><i class="fas fa-chart-line"></i> لا توجد إيرادات</div>';
+                    adminRevenueChartInstance = null; } else {
+                    adminRevenueChartInstance = new Chart(rCtx, {
+                        type: 'bar',
+                        data: { labels: revMonths, datasets: [{ label: 'الإيرادات (ج.م)', data: revData,
+                                backgroundColor: 'rgba(37,99,235,0.65)', borderColor: '#2563eb',
+                                borderWidth: 2, borderRadius: 6 }] },
+                        options: { responsive: true, maintainAspectRatio: true,
+                        plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { color: tc2 } }, x: { ticks: { color: tc2 } } } }
+                    });
+                }
+
+                // Attendance last 7 days
+                let days7 = [];
+                for (let i = 6; i >= 0; i--) { let d = new Date();
+                    d.setDate(d.getDate() - i);
+                    days7.push(d.toISOString().split('T')[0]); }
+                let dayCounts = days7.map(day => {
+                    let target = new Date(day);
+                    target.setHours(0, 0, 0, 0);
+                    return adminAttendance.filter(log => {
+                        let ds = log['تاريخ الدخول'] || '';
+                        if (!ds) return false;
+                        let ld = parseDateFromSheet(ds);
+                        if (!ld) return false;
+                        ld.setHours(0, 0, 0, 0);
+                        return ld.getTime() === target.getTime();
+                    }).length;
+                });
+                let aCtx = document.getElementById('adminAttendanceChart').getContext('2d');
+                if (adminAttendanceChartInstance) { adminAttendanceChartInstance.destroy();
+                    adminAttendanceChartInstance = null; }
+                adminAttendanceChartInstance = new Chart(aCtx, {
+                    type: 'line',
+                    data: {
+                        labels: days7.map(d => { let p = d.split('-'); return `${p[2]}/${p[1]}`; }),
+                        datasets: [{ label: 'عدد الحضور', data: dayCounts, borderColor: '#0ea5e9',
+                            backgroundColor: 'rgba(14,165,233,0.08)', fill: true, tension: 0.3,
+                            pointBackgroundColor: '#0ea5e9', pointBorderColor: '#fff', pointBorderWidth: 2,
+                            pointRadius: 4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: tc2 } }, x: { ticks: { color: tc2 } } } }
+                });
+
+                // Peak hours (Admin)
+                let thirtyAgo = new Date();
+                thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+                thirtyAgo.setHours(0, 0, 0, 0);
+                let recent = adminAttendance.filter(log => { let d = parseDateFromSheet(log['تاريخ الدخول'] || log[
+                        'وقت الدخول']); if (!d) return false;
+                    d.setHours(0, 0, 0, 0); return d >= thirtyAgo; });
+                let { hourCount, topHours } = analyzePeakHours(recent);
+                let fmt = (item) => { if (!item || item.count === 0) return 'لا توجد بيانات'; return `${String(item.hour).padStart(2,'0')}:00 (${item.count})`; };
+                document.getElementById('adminPeakHourTop').textContent = fmt(topHours[0] || null);
+                document.getElementById('adminPeakHourSecond').textContent = fmt(topHours[1] || null);
+                document.getElementById('adminPeakHourThird').textContent = fmt(topHours[2] || null);
+
+                let pLabels = [],
+                    pData = [],
+                    pColors = [];
+                for (let h = 0; h < 24; h++) { pLabels.push(`${String(h).padStart(2,'0')}:00`);
+                    pData.push(hourCount[h] || 0);
+                    let isTop = topHours.slice(0, 3).some(item => item.hour === h && item.count > 0);
+                    pColors.push(isTop ? 'rgba(37,99,235,0.8)' : 'rgba(14,165,233,0.30)'); }
+                let pCtx = document.getElementById('adminPeakHoursChart').getContext('2d');
+                if (adminPeakHoursChartInstance) adminPeakHoursChartInstance.destroy();
+                if (!recent.length) { pCtx.canvas.parentElement.innerHTML =
+                        '<div style="text-align:center;color:var(--text-muted);padding:20px 0;"><i class="fas fa-clock"></i> لا توجد بيانات في آخر 30 يوم</div>';
+                    adminPeakHoursChartInstance = null; } else {
+                    adminPeakHoursChartInstance = new Chart(pCtx, {
+                        type: 'bar',
+                        data: { labels: pLabels, datasets: [{ label: 'عدد مرات الدخول', data: pData,
+                                backgroundColor: pColors, borderColor: '#2563eb', borderWidth: 1,
+                            borderRadius: 4 }] },
+                        options: { responsive: true, maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: tc2 } }, x: { ticks: { color: tc2,
+                                        maxTicksLimit: 12, font: { size: 8 } } } } }
+                    });
+                }
+
+                renderMemberTable(adminMembers, adminAttendance, adminPayments);
+                renderAdminPaymentTable(adminPayments, adminMembers);
+
+                loadAnalytics();
+
+                if (expiring) showAlert(`⚠️ ${expiring} أعضاء على وشك الانتهاء`, 'warning', 6000);
+                if (newM) showAlert(`🎉 ${newM} أعضاء جدد هذا الشهر`, 'success', 5000);
+                if (expiredList.length) showAlert(`⛔ ${expiredList.length} أعضاء منتهية`, 'danger', 6000);
+                if (paidToday.length) showAlert(`💰 ${paidToday.length} دفعة اليوم`, 'success', 5000);
+
+                switchAdminSection('dashboard', document.querySelector('.admin-sidebar .nav-link.active'));
+            } catch (error) {
+                showAlert(`❌ تعذر تحميل بيانات المدير: ${error.message}`, 'danger', 6000);
+            }
+        }
+
+        // ================================================================
+        // ADVANCED ANALYTICS
+        // ================================================================
+        function loadAnalytics() {
+            const total = adminMembers.length;
+            const now = new Date();
+            const cm = now.getMonth(),
+                cy = now.getFullYear();
+
+            const activeMembers = adminMembers.filter(m => {
+                const exp = getLatestExpiryDate(m['رقم العضو'], adminPayments);
+                if (!exp) return false;
+                return new Date(exp) >= new Date();
+            });
+
+            const activeCount = activeMembers.length;
+            const retentionRate = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+
+            const newThisMonth = adminMembers.filter(m => {
+                const d = parseDateFromSheet(m['تاريخ البدء']);
+                return d && d.getMonth() === cm && d.getFullYear() === cy;
+            }).length;
+
+            const churnedThisMonth = getExpiredMembersCurrentMonth(adminPayments, adminMembers).length;
+
+            let totalRevenue = 0;
+            adminPayments.forEach(p => totalRevenue += getPaymentAmount(p));
+
+            const avgRevenue = total > 0 ? Math.round(totalRevenue / total) : 0;
+
+            const monthLogs = adminAttendance.filter(log => {
+                const d = parseDateFromSheet(log['تاريخ الدخول'] || log['وقت الدخول']);
+                return d && d.getMonth() === cm && d.getFullYear() === cy;
+            });
+            const totalVisits = monthLogs.length;
+            const avgVisits = total > 0 ? Math.round((totalVisits / total) * 10) / 10 : 0;
+
+            const typeCount = {};
+            adminMembers.forEach(m => {
+                const t = m['نوع العضوية'] || 'عادي';
+                typeCount[t] = (typeCount[t] || 0) + 1;
+            });
+            let topType = '-',
+                topCount = 0;
+            Object.entries(typeCount).forEach(([t, c]) => { if (c > topCount) { topCount = c;
+                    topType = t; } });
+
+            document.getElementById('kpiRetention').textContent = retentionRate + '%';
+            document.getElementById('kpiChurn').textContent = total > 0 ? Math.round((churnedThisMonth / total) * 100) + '%' :
+                '0%';
+            document.getElementById('kpiAvgRevenue').textContent = avgRevenue.toLocaleString() + ' ج.م';
+            document.getElementById('kpiGrowth').textContent = total > 0 ? Math.round((newThisMonth / total) * 100) + '%' :
+                '0%';
+            document.getElementById('kpiAvgVisits').textContent = avgVisits;
+            document.getElementById('kpiTopType').textContent = topType;
+
+            document.getElementById('analyticsActiveMembers').textContent = activeCount;
+            document.getElementById('analyticsNewThisMonth').textContent = newThisMonth;
+            document.getElementById('analyticsChurnedThisMonth').textContent = churnedThisMonth;
+            document.getElementById('analyticsNetGrowth').textContent = (newThisMonth - churnedThisMonth) > 0 ?
+                `+${newThisMonth - churnedThisMonth}` : `${newThisMonth - churnedThisMonth}`;
+
+            document.getElementById('analyticsTotalRevenue').textContent = totalRevenue.toLocaleString() + ' ج.م';
+            const months = adminPayments.map(p => getPaymentMonth(p)).filter(m => m !== null);
+            const uniqueMonths = [...new Set(months)];
+            const avgMonthly = uniqueMonths.length > 0 ? Math.round(totalRevenue / uniqueMonths.length) : 0;
+            document.getElementById('analyticsAvgMonthly').textContent = avgMonthly.toLocaleString() + ' ج.م';
+            document.getElementById('analyticsTopMonth').textContent = uniqueMonths.length > 0 ? uniqueMonths[
+                uniqueMonths.length - 1] || '-' : '-';
+            document.getElementById('analyticsForecastNext').textContent = (avgMonthly * 1.05).toFixed(0).toLocaleString() +
+                ' ج.م';
+
+            const totalVisitsAll = adminAttendance.length;
+            document.getElementById('analyticsTotalVisits').textContent = totalVisitsAll;
+            const dayCount = Math.max(1, Math.floor((new Date() - new Date(new Date().getFullYear(), new Date()
+                .getMonth(), 1)) / (1000 * 60 * 60 * 24)) + 1);
+            document.getElementById('analyticsDailyAvg').textContent = Math.round(totalVisits / dayCount);
+
+            const weekdays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+            const dayCounts = {};
+            adminAttendance.forEach(log => {
+                const d = parseDateFromSheet(log['تاريخ الدخول'] || log['وقت الدخول']);
+                if (d) {
+                    const day = d.getDay();
+                    dayCounts[day] = (dayCounts[day] || 0) + 1;
+                }
+            });
+            let busyDay = '-',
+                quietDay = '-',
+                maxC = 0,
+                minC = Infinity;
+            Object.entries(dayCounts).forEach(([d, c]) => {
+                if (c > maxC) { maxC = c;
+                    busyDay = weekdays[parseInt(d)] || '-'; }
+                if (c < minC) { minC = c;
+                    quietDay = weekdays[parseInt(d)] || '-'; }
+            });
+            document.getElementById('analyticsBusiestDay').textContent = busyDay;
+            document.getElementById('analyticsQuietestDay').textContent = quietDay;
+
+            document.getElementById('analyticsTopMembership').textContent = topType;
+            let bottomType = '-',
+                bottomCount = Infinity;
+            Object.entries(typeCount).forEach(([t, c]) => { if (c < bottomCount) { bottomCount = c;
+                    bottomType = t; } });
+            document.getElementById('analyticsBottomMembership').textContent = bottomType;
+
+            let totalAge = 0,
+                ageCount = 0;
+            const ageGroups = { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '55+': 0 };
+            adminMembers.forEach(m => {
+                const age = parseInt(m['العمر']);
+                if (!isNaN(age) && age > 0) {
+                    totalAge += age;
+                    ageCount++;
+                    if (age <= 25) ageGroups['18-25']++;
+                    else if (age <= 35) ageGroups['26-35']++;
+                    else if (age <= 45) ageGroups['36-45']++;
+                    else if (age <= 55) ageGroups['46-55']++;
+                    else ageGroups['55+']++;
+                }
+            });
+            document.getElementById('analyticsAvgAge').textContent = ageCount > 0 ? Math.round(totalAge / ageCount) : '-';
+            let topAgeGroup = '-',
+                topAgeCount = 0;
+            Object.entries(ageGroups).forEach(([g, c]) => { if (c > topAgeCount) { topAgeCount = c;
+                    topAgeGroup = g; } });
+            document.getElementById('analyticsTopAgeGroup').textContent = topAgeGroup + ` (${topAgeCount})`;
+
+            renderAnalyticsCharts();
+        }
+
+        function renderAnalyticsCharts() {
+            const isDark = document.getElementById('htmlRoot').classList.contains('dark');
+            const tc = isDark ? '#94a3b8' : '#4a5568';
+
+            const growthCtx = document.getElementById('analyticsGrowthChart').getContext('2d');
+            if (analyticsGrowthChartInstance) analyticsGrowthChartInstance.destroy();
+
+            const startDates = adminMembers.map(m => parseDateFromSheet(m['تاريخ البدء'])).filter(d => d !== null);
+            const monthMap = {};
+            startDates.forEach(d => {
+                const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                monthMap[key] = (monthMap[key] || 0) + 1;
+            });
+            const sortedMonths = Object.keys(monthMap).sort();
+            const growthData = sortedMonths.map(m => monthMap[m] || 0);
+
+            analyticsGrowthChartInstance = new Chart(growthCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedMonths.map(m => {
+                        const [y, mo] = m.split('-');
+                        return ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر',
+                            'أكتوبر', 'نوفمبر', 'ديسمبر'
+                        ][parseInt(mo) - 1] + ' ' + y;
+                    }),
+                    datasets: [{
+                        label: 'أعضاء جدد',
+                        data: growthData,
+                        backgroundColor: 'rgba(37,99,235,0.6)',
+                        borderColor: '#2563eb',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, labels: { color: tc } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: tc } },
+                        x: { ticks: { color: tc, font: { size: 9 } } }
+                    }
+                }
+            });
+
+            const retCtx = document.getElementById('analyticsRetentionChart').getContext('2d');
+            if (analyticsRetentionChartInstance) analyticsRetentionChartInstance.destroy();
+
+            const total = adminMembers.length || 1;
+            const active = adminMembers.filter(m => {
+                const exp = getLatestExpiryDate(m['رقم العضو'], adminPayments);
+                if (!exp) return false;
+                return new Date(exp) >= new Date();
+            }).length;
+            const churned = total - active;
+
+            analyticsRetentionChartInstance = new Chart(retCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['نشطون', 'منتهيون'],
+                    datasets: [{
+                        data: [active, churned],
+                        backgroundColor: ['rgba(16,185,129,0.7)', 'rgba(239,68,68,0.7)'],
+                        borderColor: ['#10b981', '#ef4444'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: tc } }
+                    }
+                }
+            });
+
+            const revTypeCtx = document.getElementById('analyticsRevenueTypeChart').getContext('2d');
+            if (analyticsRevenueTypeChartInstance) analyticsRevenueTypeChartInstance.destroy();
+
+            const typeRevenue = {};
+            adminPayments.forEach(p => {
+                const m = adminMembers.find(x => x['رقم العضو'] === p['العضو']);
+                const type = m ? m['نوع العضوية'] || 'غير محدد' : 'غير محدد';
+                const amt = getPaymentAmount(p);
+                typeRevenue[type] = (typeRevenue[type] || 0) + amt;
+            });
+            const typeLabels = Object.keys(typeRevenue);
+            const typeValues = typeLabels.map(k => typeRevenue[k]);
+            const typeColors = ['rgba(37,99,235,0.7)', 'rgba(16,185,129,0.7)', 'rgba(245,158,11,0.7)',
+                'rgba(139,92,246,0.7)', 'rgba(239,68,68,0.7)'
+            ];
+
+            analyticsRevenueTypeChartInstance = new Chart(revTypeCtx, {
+                type: 'pie',
+                data: {
+                    labels: typeLabels,
+                    datasets: [{
+                        data: typeValues,
+                        backgroundColor: typeColors.slice(0, typeLabels.length),
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: tc } }
+                    }
+                }
+            });
+
+            const forecastCtx = document.getElementById('analyticsForecastChart').getContext('2d');
+            if (analyticsForecastChartInstance) analyticsForecastChartInstance.destroy();
+
+            const monthsList = adminPayments.map(p => getPaymentMonth(p)).filter(m => m !== null);
+            const uniqueMonthList = [...new Set(monthsList)].sort();
+            const monthRevenue = {};
+            adminPayments.forEach(p => {
+                const m = getPaymentMonth(p);
+                if (m) {
+                    const amt = getPaymentAmount(p);
+                    monthRevenue[m] = (monthRevenue[m] || 0) + amt;
+                }
+            });
+            const histMonths = uniqueMonthList.slice(-6);
+            const histData = histMonths.map(m => monthRevenue[m] || 0);
+            const last3 = histData.slice(-3);
+            const avgForecast = last3.length > 0 ? last3.reduce((a, b) => a + b, 0) / last3.length : 0;
+
+            const forecastMonths = [];
+            const forecastData = [];
+            for (let i = 1; i <= 3; i++) {
+                const lastMonth = uniqueMonthList.length > 0 ? uniqueMonthList[uniqueMonthList.length - 1] : '';
+                if (lastMonth) {
+                    const [y, mo] = lastMonth.split('-').map(Number);
+                    let nextM = mo + i;
+                    let nextY = y;
+                    if (nextM > 12) { nextM -= 12;
+                        nextY++; }
+                    forecastMonths.push(`${nextY}-${String(nextM).padStart(2,'0')}`);
+                } else {
+                    forecastMonths.push(`توقع ${i}`);
+                }
+                forecastData.push(Math.round(avgForecast * (1 + (i - 1) * 0.02)));
+            }
+            const combinedLabels = [...histMonths, ...forecastMonths];
+            const combinedData = [...histData, ...forecastData];
+
+            analyticsForecastChartInstance = new Chart(forecastCtx, {
+                type: 'line',
+                data: {
+                    labels: combinedLabels.map(m => {
+                        if (m.includes('توقع')) return m;
+                        const [y, mo] = m.split('-');
+                        return ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر',
+                            'أكتوبر', 'نوفمبر', 'ديسمبر'
+                        ][parseInt(mo) - 1] + ' ' + y;
+                    }),
+                    datasets: [{
+                        label: 'الإيرادات',
+                        data: combinedData,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37,99,235,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#2563eb',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        borderDash: (ctx) => {
+                            const index = ctx.dataIndex;
+                            if (index >= histMonths.length) return [6, 4];
+                            return [];
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, labels: { color: tc } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: tc } },
+                        x: { ticks: { color: tc, font: { size: 9 } } }
+                    }
+                }
+            });
+
+            const wdCtx = document.getElementById('analyticsWeekdayChart').getContext('2d');
+            if (analyticsWeekdayChartInstance) analyticsWeekdayChartInstance.destroy();
+
+            const wdCounts = {};
+            adminAttendance.forEach(log => {
+                const d = parseDateFromSheet(log['تاريخ الدخول'] || log['وقت الدخول']);
+                if (d) {
+                    const day = d.getDay();
+                    wdCounts[day] = (wdCounts[day] || 0) + 1;
+                }
+            });
+            const wdLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+            const wdData = wdLabels.map((_, i) => wdCounts[i] || 0);
+
+            analyticsWeekdayChartInstance = new Chart(wdCtx, {
+                type: 'bar',
+                data: {
+                    labels: wdLabels,
+                    datasets: [{
+                        label: 'عدد مرات الدخول',
+                        data: wdData,
+                        backgroundColor: 'rgba(37,99,235,0.6)',
+                        borderColor: '#2563eb',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: tc } },
+                        x: { ticks: { color: tc } }
+                    }
+                }
+            });
+
+            const hdCtx = document.getElementById('analyticsHourDistribution').getContext('2d');
+            if (analyticsHourDistributionInstance) analyticsHourDistributionInstance.destroy();
+
+            const hourCounts = {};
+            adminAttendance.forEach(log => {
+                const h = extractHour(log['وقت الدخول']);
+                if (h !== null) {
+                    hourCounts[h] = (hourCounts[h] || 0) + 1;
+                }
+            });
+            const hLabels = [];
+            const hData = [];
+            for (let h = 6; h <= 22; h++) {
+                hLabels.push(`${h}:00`);
+                hData.push(hourCounts[h] || 0);
+            }
+
+            analyticsHourDistributionInstance = new Chart(hdCtx, {
+                type: 'bar',
+                data: {
+                    labels: hLabels,
+                    datasets: [{
+                        label: 'عدد مرات الدخول',
+                        data: hData,
+                        backgroundColor: 'rgba(16,185,129,0.6)',
+                        borderColor: '#10b981',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: tc } },
+                        x: { ticks: { color: tc, font: { size: 8 } } }
+                    }
+                }
+            });
+
+            const tdCtx = document.getElementById('analyticsTypeDistribution').getContext('2d');
+            if (analyticsTypeDistributionInstance) analyticsTypeDistributionInstance.destroy();
+
+            const typeDist = {};
+            adminMembers.forEach(m => {
+                const t = m['نوع العضوية'] || 'عادي';
+                typeDist[t] = (typeDist[t] || 0) + 1;
+            });
+            const tdLabels = Object.keys(typeDist);
+            const tdData = tdLabels.map(k => typeDist[k]);
+            const tdColors = ['rgba(37,99,235,0.7)', 'rgba(16,185,129,0.7)', 'rgba(245,158,11,0.7)',
+                'rgba(139,92,246,0.7)'
+            ];
+
+            analyticsTypeDistributionInstance = new Chart(tdCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: tdLabels,
+                    datasets: [{
+                        data: tdData,
+                        backgroundColor: tdColors.slice(0, tdLabels.length),
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: tc } }
+                    }
+                }
+            });
+
+            const adCtx = document.getElementById('analyticsAgeDistribution').getContext('2d');
+            if (analyticsAgeDistributionInstance) analyticsAgeDistributionInstance.destroy();
+
+            const ageGroups = { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '55+': 0 };
+            adminMembers.forEach(m => {
+                const age = parseInt(m['العمر']);
+                if (!isNaN(age) && age > 0) {
+                    if (age <= 25) ageGroups['18-25']++;
+                    else if (age <= 35) ageGroups['26-35']++;
+                    else if (age <= 45) ageGroups['36-45']++;
+                    else if (age <= 55) ageGroups['46-55']++;
+                    else ageGroups['55+']++;
+                }
+            });
+            const adLabels = Object.keys(ageGroups);
+            const adData = adLabels.map(k => ageGroups[k]);
+            const adColors = ['rgba(37,99,235,0.6)', 'rgba(16,185,129,0.6)', 'rgba(245,158,11,0.6)',
+                'rgba(139,92,246,0.6)', 'rgba(239,68,68,0.6)'
+            ];
+
+            analyticsAgeDistributionInstance = new Chart(adCtx, {
+                type: 'bar',
+                data: {
+                    labels: adLabels,
+                    datasets: [{
+                        label: 'عدد الأعضاء',
+                        data: adData,
+                        backgroundColor: adColors,
+                        borderColor: adColors.map(c => c.replace('0.6', '1')),
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: tc } },
+                        x: { ticks: { color: tc } }
+                    }
+                }
+            });
+        }
+
+        function refreshAnalytics() {
+            showAlert('🔄 جاري تحديث التحليلات...', 'info', 1500);
+            loadAnalytics();
+            showAlert('✅ تم تحديث التحليلات!', 'success', 1500);
+        }
+
+        // ================================================================
+        // ADMIN NAVIGATION
+        // ================================================================
+        function switchAdminSection(section, btn) {
+            document.querySelectorAll('.admin-sidebar .nav-link').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            document.getElementById('adminMembersSection').style.display = section === 'members' ? 'block' : 'block';
+            document.getElementById('adminPaymentsSection').style.display = section === 'payments' ? 'block' : 'block';
+            document.getElementById('adminAnalyticsSection').style.display = section === 'analytics' ? 'block' : 'block';
+
+            if (section === 'dashboard') {
+                document.getElementById('adminMembersSection').style.display = 'block';
+                document.getElementById('adminPaymentsSection').style.display = 'block';
+                document.getElementById('adminAnalyticsSection').style.display = 'block';
+            }
+
+            if (section === 'members') {
+                document.getElementById('adminMembersSection').scrollIntoView({ behavior: 'smooth' });
+            } else if (section === 'payments') {
+                document.getElementById('adminPaymentsSection').scrollIntoView({ behavior: 'smooth' });
+            } else if (section === 'analytics') {
+                document.getElementById('adminAnalyticsSection').scrollIntoView({ behavior: 'smooth' });
+            } else if (section === 'attendance') {
+                document.querySelector('.admin-content .glass-card:first-of-type')?.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            document.querySelectorAll('#adminBottomNav .nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelector(`#adminBottomNav .nav-item[data-section="${section}"]`)?.classList.add('active');
+
+            if (section === 'analytics') {
+                setTimeout(() => loadAnalytics(), 100);
+            }
+        }
+
+        function switchAdminSectionMobile(section) {
+            let btn = document.querySelector(`.admin-sidebar .nav-link[data-section="${section}"]`);
+            if (btn) switchAdminSection(section, btn);
+        }
+
+        // ================================================================
+        // ANALYTICS TABS
+        // ================================================================
+        function switchAnalyticsTab(tabId, btn) {
+            document.querySelectorAll('.analytics-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            document.querySelectorAll('.analytics-tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+
+            setTimeout(() => {
+                const charts = [
+                    analyticsGrowthChartInstance,
+                    analyticsRetentionChartInstance,
+                    analyticsRevenueTypeChartInstance,
+                    analyticsForecastChartInstance,
+                    analyticsWeekdayChartInstance,
+                    analyticsHourDistributionInstance,
+                    analyticsTypeDistributionInstance,
+                    analyticsAgeDistributionInstance
+                ];
+                charts.forEach(c => {
+                    if (c && c.resize) c.resize();
+                });
+            }, 100);
+        }
+
+        // ================================================================
+        // MEMBER TABLE
+        // ================================================================
+        function renderMemberTable(members, attendance, payments) {
+            let tbody = document.getElementById('memberTableBody');
+            let search = document.getElementById('memberSearchInput');
+
+            function filter() { let q = search.value.toLowerCase(); return members.filter(m => (m['الاسم الكامل'] || '')
+                    .toLowerCase().includes(q) || (m['رقم العضو'] || '').toLowerCase().includes(q)); }
+
+            function render() {
+                let filtered = filter();
+                tbody.innerHTML = filtered.map(m => {
+                    let { points, title } = calculatePointsAndTitle(m['رقم العضو'], attendance);
+                    let exp = getLatestExpiryDate(m['رقم العضو'], payments || []);
+                    let expStr = exp ? exp.toISOString().split('T')[0] : '-';
+                    let isExp = exp && new Date(exp) < new Date();
+                    let phone = m['رقم الهاتف'] || '';
+                    let wa = phone ? `<a href="https://wa.me/2${phone}" target="_blank" class="wa-link-gym"><i class="fab fa-whatsapp"></i> ${phone}</a>` :
+                        '-';
+                    return `<tr>
+                        <td style="font-weight:500;">${m['رقم العضو']||'-'}</td>
+                        <td>${m['الاسم الكامل']||'-'}</td>
+                        <td>${wa}</td>
+                        <td>${m['نوع العضوية']||'عادي'}</td>
+                        <td>${points}</td>
+                        <td>${title}</td>
+                        <td style="${isExp ? 'color:#ef4444;font-weight:600;' : ''}">${expStr}</td>
+                    </tr>`;
+                }).join('');
+            }
+            search.addEventListener('input', render);
+            render();
+        }
+
+        // ================================================================
+        // ADMIN PAYMENT TABLE
+        // ================================================================
+        function renderAdminPaymentTable(payments, members) {
+            let tbody = document.getElementById('adminPaymentTableBody');
+            let tfoot = document.getElementById('adminPaymentTableFoot');
+            let now = new Date();
+            let cm = now.getMonth(),
+                cy = now.getFullYear();
+            let filtered = payments.filter(p => { let m = getPaymentMonth(p); if (!m) return false; let [y, mo] = m.split(
+                    '-').map(Number); return y === cy && mo === cm + 1; });
+            let sorted = filtered.sort((a, b) => { let da = parseDateFromSheet(a['تاريخ الدفع']); let db = parseDateFromSheet(
+                    b['تاريخ الدفع']); if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; return db - da; });
+            let total = 0;
+            tbody.innerHTML = sorted.map((p, i) => {
+                let m = members.find(x => x['رقم العضو'] === p['العضو']);
+                let name = m ? m['الاسم الكامل'] : p['العضو'];
+                let amt = getPaymentAmount(p);
+                total += amt;
+                return `<tr>
+                    <td class="row-num">${i+1}</td>
+                    <td>${name}</td>
+                    <td>${amt.toLocaleString()} ج.م</td>
+                    <td>${p['تاريخ الدفع']||'-'}</td>
+                    <td>${p['شهر الدفع']||'-'}</td>
+                    <td>${p['عدد الأشهر المدفوعة']||'-'}</td>
+                    <td>${p['تاريخ انتهاء الصلاحية']||'-'}</td>
+                </tr>`;
+            }).join('');
+            tfoot.innerHTML =
+                `<tr class="total-row"><td colspan="2" style="text-align:left;">المجموع الكلي</td><td colspan="5" style="text-align:right;font-weight:700;font-size:1rem;">${total.toLocaleString()} ج.م</td></tr>`;
+        }
+
+        // ================================================================
+        // ADMIN MODALS (now using stat detail modal)
+        // ================================================================
+        function showTodayAttendanceModal() { showStatDetail('attendance'); }
+
+        function closeTodayAttendanceModal() { document.getElementById('todayAttendanceModal').classList.remove('active'); }
+
+        function showExpiringMembersModal() { showStatDetail('expiring'); }
+
+        function closeExpiryModal() { document.getElementById('expiryModal').classList.remove('active'); }
+
+        function showNewMembersModal() { showStatDetail('new'); }
+
+        function closeNewMembersModal() { document.getElementById('newMembersModal').classList.remove('active'); }
+
+        function showExpiredMembersModal() { showStatDetail('expired'); }
+
+        function closeExpiredMembersModal() { document.getElementById('expiredMembersModal').classList.remove('active'); }
+
+        function showPaidTodayModal() { showStatDetail('paidToday'); }
+
+        function closePaidTodayModal() { document.getElementById('paidTodayModal').classList.remove('active'); }
+
+        // ================================================================
+        // QR CODE
+        // ================================================================
+        let adminQrCodeInstance = null,
+            adminQrDataUrl = '';
+
+        function openCreateQrModal() {
+            document.getElementById('createQrModal').classList.add('active');
+            populateMemberSelect();
+            document.getElementById('adminQrResult').innerHTML =
+                '<span style="color:var(--text-muted);font-size:0.9rem;"><i class="fas fa-arrow-left"></i> اختر عضواً ثم اضغط "إنشاء QR"</span>';
+            document.getElementById('adminQrDownload').classList.add('hidden');
+        }
+
+        function closeCreateQrModal() {
+            document.getElementById('createQrModal').classList.remove('active');
+            if (adminQrCodeInstance) { adminQrCodeInstance.clear();
+                adminQrCodeInstance = null; }
+        }
+
+        async function populateMemberSelect() {
+            let select = document.getElementById('qrMemberSelect');
+            select.innerHTML = '<option value="">-- اختر عضواً --</option>';
+            try {
+                const members = await fetchSheetData('بيانات الأعضاء');
+                members.forEach(m => { let opt = document.createElement('option');
+                    opt.value = m['رقم العضو'];
+                    opt.textContent = `${m['رقم العضو']} - ${m['الاسم الكامل']}`;
+                    select.appendChild(opt); });
+            } catch (e) {
+                showAlert('⚠️ تعذر تحميل قائمة الأعضاء', 'warning', 3000);
+            }
+        }
+
+        function generateAdminQr() {
+            let mid = document.getElementById('qrMemberSelect').value;
+            if (!mid) { showAlert('الرجاء اختيار عضو', 'warning'); return; }
+            let container = document.getElementById('adminQrResult');
+            container.innerHTML = '';
+            container.style.background = '#ffffff';
+            try {
+                adminQrCodeInstance = new QRCode(container, { text: mid, width: 160, height: 160, colorDark: '#000000',
+                    colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+                setTimeout(() => {
+                    let canvas = container.querySelector('canvas');
+                    if (canvas) {
+                        let nc = document.createElement('canvas');
+                        nc.width = canvas.width + 40;
+                        nc.height = canvas.height + 40;
+                        let ctx = nc.getContext('2d');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, nc.width, nc.height);
+                        ctx.drawImage(canvas, 20, 20);
+                        container.innerHTML = '';
+                        container.appendChild(nc);
+                        adminQrDataUrl = nc.toDataURL('image/png');
+                        document.getElementById('adminQrDownload').classList.remove('hidden');
+                    }
+                }, 500);
+                showAlert(`✅ تم إنشاء QR للعضو ${mid}`, 'success');
+            } catch (e) { container.innerHTML = '<p style="color:#ef4444;">حدث خطأ</p>';
+                container.style.background = '#ffffff'; }
+        }
+
+        function downloadAdminQr() {
+            if (!adminQrDataUrl) return;
+            let link = document.createElement('a');
+            link.download = `QR_${document.getElementById('qrMemberSelect').value}.png`;
+            link.href = adminQrDataUrl;
+            link.click();
+        }
+
+        // ================================================================
+        // SETTINGS MODAL
+        // ================================================================
+        function openSettingsModal() {
+            document.getElementById('settingsModal').classList.add('active');
+            document.getElementById('adminPwdResult').classList.add('hidden');
+            document.getElementById('memberPwdResult').innerHTML =
+                '<p style="color:var(--text-muted);font-size:0.9rem;"><i class="fas fa-info-circle"></i> ابحث عن عضو لإدارة كلمة المرور وعرض السجل</p>';
+            document.getElementById('phoneRecoveryResult').classList.add('hidden');
+        }
+
+        function closeSettingsModal() { document.getElementById('settingsModal').classList.remove('active'); }
+
+        function switchSettingsTab(tabId, btn) {
+            document.querySelectorAll('.tab-content-gym').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.tab-btn-gym').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        // ================================================================
+        // MEMBER BOTTOM NAV
+        // ================================================================
+        function switchMemberTab(tab) {
+            document.querySelectorAll('#memberBottomNav .nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelector(`#memberBottomNav .nav-item[data-tab="${tab}"]`)?.classList.add('active');
+
+            if (tab === 'home') window.scrollTo({ top: 0, behavior: 'smooth' });
+            else if (tab === 'stats') document.querySelector('.chart-wrap-gym')?.scrollIntoView({ behavior: 'smooth' });
+            else if (tab === 'calendar') document.getElementById('calendarContainer')?.scrollIntoView({ behavior: 'smooth' });
+            else if (tab === 'profile') document.getElementById('membershipCardContainer')?.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // ================================================================
+        // REFRESH
+        // ================================================================
+        async function refreshAdminData() { showAlert('🔄 جاري التحديث...', 'info', 1500);
+            await loadAdminDashboard();
+            showAlert('✅ تم التحديث!', 'success', 1500); }
+
+        // ================================================================
+        // AUTO REFRESH
+        // ================================================================
+        setInterval(async function() {
+            let role = localStorage.getItem('gym_role');
+            let mid = localStorage.getItem('gym_member_id');
+            if (role === 'member' && mid) {
+                try {
+                    const members = await fetchSheetData('بيانات الأعضاء');
+                    const attendance = await fetchSheetData('سجل دخول الجيم');
+                    const payments = await fetchSheetData('سجل المدفوعات');
+                    const found = findMemberById(members, mid);
+                    if (found) {
+                        const blocked = isMemberBlocked(mid, payments);
+                        document.getElementById('expiredOverlay').classList.toggle('active', blocked);
+
+                        let { points, title } = calculatePointsAndTitle(mid, attendance);
+                        displayPersonalInfo(found, title, points);
+                        displayMembershipCard(found, points, title, getLatestExpiryDate(mid, payments), mid);
+                        displayLeaderboard(members, attendance, mid);
+                        displayDisciplineScore(mid, attendance);
+                        displayExpiryDate(mid, payments);
+                        displayPeakHoursChart(attendance);
+                        updateGoalProgress(mid, attendance);
+                        renderCalendar(mid, attendance);
+
+                        let active = members.filter(m => m['الاسم الكامل'] && m['الاسم الكامل'].trim() !== '');
+                        document.getElementById('totalMembers').textContent = active.length;
+                        let td = new Date();
+                        td.setHours(0, 0, 0, 0);
+                        let cnt = 0;
+                        attendance.forEach(log => { let d = parseDateFromSheet(log['تاريخ الدخول'] || log['وقت الدخول']); if (d &&
+                                isSameDate(d, td)) cnt++; });
+                        let pct = active.length ? Math.round((cnt / active.length) * 100) : 0;
+                        document.getElementById('todayAttendance').textContent = pct + '%';
+                        let same = 0;
+                        if (title) {
+                            active.forEach(m => { let { title: t } = calculatePointsAndTitle(m['رقم العضو'],
+                                    attendance); if (t === title) same++; });
+                        }
+                        document.getElementById('sameTitleCount').textContent = same;
+                    }
+                } catch (e) { /* silent */ }
+            }
+        }, 30000);
+
+        // ================================================================
+        // INIT
+        // ================================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            checkProxyOnStart();
+
+            let role = localStorage.getItem('gym_role');
+            let mid = localStorage.getItem('gym_member_id');
+            if (role === 'admin') loadAdminDashboard();
+            else if (role === 'member' && mid) loadMemberDashboard(mid);
+            else document.getElementById('loginPage').classList.remove('hidden');
+        });
+
+        console.log('✅ Gym Pro v4.1 – New Members Enhanced');
+        console.log('📊 All new members shown (paid & unpaid) with full details');
+        console.log('📱 WhatsApp messages include registration details, password, and payment info');
+        console.log('🎯 Encouragement messages for unpaid members');
+        console.log('🔗 Proxy URL:', PROXY_URL);
+    </script>
+</body>
+</html>
